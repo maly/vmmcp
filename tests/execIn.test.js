@@ -70,6 +70,23 @@ test("execIn rejects empty argv and shell binaries", async () => {
   );
 });
 
+test("execIn rejects raw container disclosure binaries", async () => {
+  for (const binary of ["env", "cat", "head", "tail"]) {
+    const { runner, calls } = createRunner();
+
+    await assert.rejects(
+      () => execIn({
+        runner,
+        cwd: "D:/srv/project",
+        container: "project-web-1",
+        argv: [binary]
+      }),
+      /not allowed/
+    );
+    assert.equal(calls.length, 0);
+  }
+});
+
 test("execIn rejects unknown containers before docker exec", async () => {
   const { runner, calls } = createRunner();
 
@@ -101,4 +118,19 @@ test("runScript runs only configured scripts without shell", async () => {
     () => runScript({ config, runner, name: "deploy" }),
     /not allowed/
   );
+});
+
+test("runScript rejects scripts writable through file policy", async () => {
+  const { runner, calls } = createRunner();
+  const config = loadConfig({
+    composeProjectDir: "D:/srv/project",
+    writableGlobs: ["start"],
+    allowedScripts: ["start"]
+  }, "D:/srv/project");
+
+  await assert.rejects(
+    () => runScript({ config, runner, name: "start" }),
+    /writable through MCP/
+  );
+  assert.equal(calls.length, 0);
 });

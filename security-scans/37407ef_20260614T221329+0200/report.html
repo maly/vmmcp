@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vm-mcp Codex Security Scan</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fff;
+      --bg-elev: #fafafa;
+      --bg-muted: #f5f5f7;
+      --fg: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --code: #f3f4f6;
+      --shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0f14;
+        --bg-elev: #0f141b;
+        --bg-muted: #121923;
+        --fg: #e5e7eb;
+        --muted: #9ca3af;
+        --border: #243040;
+        --accent: #60a5fa;
+        --code: #111827;
+        --shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    body.sidebar-collapsed .layout { grid-template-columns: 44px minmax(0, 1fr); }
+
+    .sidebar {
+      min-height: 100vh;
+      border-right: 1px solid var(--border);
+      background: var(--bg-muted);
+    }
+
+    .toc-inner {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      padding: 10px 8px;
+    }
+
+    .nav-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin: 0 0 8px;
+      text-transform: uppercase;
+    }
+
+    .nav-toggle {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px;
+    }
+
+    .nav-toggle:hover { box-shadow: var(--shadow); }
+    .nav-meta { color: var(--muted); font-size: 12px; margin: 0 0 12px; padding: 0 4px; }
+
+    body.sidebar-collapsed .toc-inner {
+      display: flex;
+      align-items: center;
+      padding: 8px 6px;
+    }
+
+    body.sidebar-collapsed .nav-title span,
+    body.sidebar-collapsed .nav-meta,
+    body.sidebar-collapsed .toc { display: none; }
+
+    main { max-width: 1040px; padding: 32px 44px 80px; }
+    h1, h2, h3 { line-height: 1.2; margin-top: 1.7em; }
+    h1:first-child { margin-top: 0; }
+    h2 { border-top: 1px solid var(--border); padding-top: 1em; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: var(--code); border-radius: 4px; padding: 0.1em 0.3em; }
+    pre { background: var(--code); border: 1px solid var(--border); border-radius: 8px; overflow: auto; padding: 16px; }
+    pre code { background: transparent; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 18px 0; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+    th { text-align: left; background: var(--code); }
+
+    main h3[id^="0-"] + table,
+    main h3[id^="1-"] + table,
+    main h3[id^="2-"] + table,
+    main h3[id^="3-"] + table,
+    main h3[id^="4-"] + table,
+    main h3[id^="5-"] + table,
+    main h3[id^="6-"] + table,
+    main h3[id^="7-"] + table,
+    main h3[id^="8-"] + table,
+    main h3[id^="9-"] + table {
+      margin: 10px 0 24px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      background: var(--bg-elev);
+      box-shadow: var(--shadow);
+    }
+
+    main h3[id^="0-"] + table th,
+    main h3[id^="1-"] + table th,
+    main h3[id^="2-"] + table th,
+    main h3[id^="3-"] + table th,
+    main h3[id^="4-"] + table th,
+    main h3[id^="5-"] + table th,
+    main h3[id^="6-"] + table th,
+    main h3[id^="7-"] + table th,
+    main h3[id^="8-"] + table th,
+    main h3[id^="9-"] + table th { display: none; }
+
+    main h3[id^="0-"] + table td:first-child,
+    main h3[id^="1-"] + table td:first-child,
+    main h3[id^="2-"] + table td:first-child,
+    main h3[id^="3-"] + table td:first-child,
+    main h3[id^="4-"] + table td:first-child,
+    main h3[id^="5-"] + table td:first-child,
+    main h3[id^="6-"] + table td:first-child,
+    main h3[id^="7-"] + table td:first-child,
+    main h3[id^="8-"] + table td:first-child,
+    main h3[id^="9-"] + table td:first-child {
+      width: 170px;
+      color: var(--muted);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    main h3[id^="0-"] + table td,
+    main h3[id^="1-"] + table td,
+    main h3[id^="2-"] + table td,
+    main h3[id^="3-"] + table td,
+    main h3[id^="4-"] + table td,
+    main h3[id^="5-"] + table td,
+    main h3[id^="6-"] + table td,
+    main h3[id^="7-"] + table td,
+    main h3[id^="8-"] + table td,
+    main h3[id^="9-"] + table td { border-left: 0; border-right: 0; }
+
+    .toc { list-style: none; padding: 0; margin: 0; }
+    .toc a {
+      display: block;
+      border-radius: 6px;
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.3;
+      padding: 4px 6px;
+      position: relative;
+      transition: background 160ms ease, color 160ms ease, padding-left 160ms ease;
+    }
+
+    .toc a:hover { background: var(--bg-elev); text-decoration: none; }
+    .toc-item { list-style: none; margin: 1px 0; }
+    .toc-item.depth-1 > a { font-weight: 700; }
+    .toc-item.depth-2 { padding-left: 14px; }
+    .toc-item.depth-3 { padding-left: 28px; }
+
+    .toc-item.active > a {
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      font-weight: 700;
+      padding-left: 10px;
+    }
+
+    .toc-item.active > a::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      .sidebar { min-height: 0; border-right: 0; border-bottom: 1px solid var(--border); }
+      .toc-inner { position: static; height: auto; max-height: 45vh; }
+      main { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Table of contents">
+      <div class="toc-inner">
+        <div class="nav-title">
+          <span>Outline</span>
+          <button id="navToggle" class="nav-toggle" aria-pressed="false" aria-label="Collapse sidebar" title="Collapse sidebar">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path id="navToggleIcon" d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="nav-meta">vm-mcp Codex Security Scan</div>
+        <ul class="toc">
+          <li class="toc-item depth-1"><a href="#security-review-vm-mcp-local-remediation-diff">Security Review: vm-mcp local remediation diff</a></li>
+<li class="toc-item depth-2"><a href="#scope">Scope</a></li>
+<li class="toc-item depth-3"><a href="#scan-summary">Scan Summary</a></li>
+<li class="toc-item depth-2"><a href="#threat-model">Threat Model</a></li>
+<li class="toc-item depth-2"><a href="#findings">Findings</a></li>
+<li class="toc-item depth-3"><a href="#confidence-scale">Confidence Scale</a></li>
+<li class="toc-item depth-3"><a href="#no-findings">No findings</a></li>
+<li class="toc-item depth-2"><a href="#reviewed-surfaces">Reviewed Surfaces</a></li>
+<li class="toc-item depth-2"><a href="#open-questions-and-follow-up">Open Questions And Follow Up</a></li>
+        </ul>
+      </div>
+    </aside>
+    <main>
+      <h1 id="security-review-vm-mcp-local-remediation-diff">Security Review: vm-mcp local remediation diff</h1>
+
+<h2 id="scope">Scope</h2>
+
+<ul><li>Target: <code>D:\servers\tools\vm-mcp</code></li><li>Scan mode: local working-tree diff scan against <code>HEAD</code></li><li>Base commit: <code>37407ef</code></li><li>Scan ID: <code>37407ef_20260614T221329+0200</code></li><li>In-scope diff rows: <code>config.example.json</code>, <code>src/config.js</code>, <code>src/docker.js</code>, <code>src/envFiles.js</code>, <code>src/execIn.js</code>, <code>src/fileOps.js</code>, <code>src/tools.js</code></li><li>Context: existing repository threat model copied unchanged to <code>artifacts/01_context/threat_model.md</code></li><li>Validation: focused Node tests plus full <code>npm test</code></li><li>Limitation: no live Docker daemon was used; Docker behavior was validated through the repository&#x27;s fake runner tests.</li></ul>
+
+<h3 id="scan-summary">Scan Summary</h3>
+
+<table>
+<thead><tr>
+<th>Field</th>
+<th>Value</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Reportable findings</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Severity mix</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Confidence mix</td>
+<td>none</td>
+</tr>
+<tr>
+<td>Coverage</td>
+<td>All 7 <code>deep_review_input.csv</code> rows have completion receipts in <code>artifacts/02_discovery/work_ledger.jsonl</code></td>
+</tr>
+<tr>
+<td>Validation mode</td>
+<td>Focused <code>node:test</code> regressions and full suite</td>
+</tr>
+<tr>
+<td>Candidate closure</td>
+<td><code>CAND-DIFF-001</code> was discovered during scan and fixed before final reporting</td>
+</tr>
+<tr>
+<td>Markdown report</td>
+<td><code>D:\servers\tools\vm-mcp\security-scans\37407ef_20260614T221329+0200\report.md</code></td>
+</tr>
+<tr>
+<td>HTML report</td>
+<td><code>D:\servers\tools\vm-mcp\security-scans\37407ef_20260614T221329+0200\report.html</code></td>
+</tr>
+</tbody></table>
+
+<h2 id="threat-model">Threat Model</h2>
+
+<p><code>vm-mcp-devtools</code> is a small Node.js ESM MCP server intended to run on demand over stdio, usually through SSH to a dev or stage VM. It does not expose an HTTP port, OAuth layer, daemon, or tunnel. Its purpose is to give an agent a bounded set of operational tools for one configured Docker Compose project without granting a free interactive shell.</p>
+
+<p>Primary runtime surfaces include Docker Compose inspection and mutation, known service/container discovery, project-scoped file operations, environment file parsing/masking/editing, constrained <code>docker exec</code>, allowlisted project scripts, and process execution through <code>spawn()</code> with <code>shell: false</code>.</p>
+
+<p>Assets and privileges that matter include the SSH identity that launches the MCP server, Docker/Compose access on the VM, the configured <code>composeProjectDir</code>, secrets in env files and compose service environments, availability and integrity of the target dev/stage Docker Compose project, and backup integrity under <code>.mcp-backups</code>.</p>
+
+<p>Main trust boundaries are MCP client to server, SSH launch boundary, server process to host, host to container, and operator-controlled config to runtime. Attacker-controlled inputs include MCP tool names and arguments, paths, container names, service names, argv arrays, env keys and values, file content, copy destinations, backup IDs, and log tail counts.</p>
+
+<p>Core invariants are: no general shell, file operations stay inside <code>composeProjectDir</code> after realpath-sensitive validation, env secrets are masked by supported env reads, protected env keys cannot be edited through supported env mutation, Docker mutations target only the configured compose project where applicable, <code>exec_in</code> accepts only allowed binaries inside known project containers, and mutating file operations create backups.</p>
+
+<h2 id="findings">Findings</h2>
+
+<table>
+<thead><tr>
+<th>#</th>
+<th>Finding</th>
+<th>Severity</th>
+<th>Confidence</th>
+<th>Category</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>-</td>
+<td>No findings</td>
+<td>-</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody></table>
+
+<h3 id="confidence-scale">Confidence Scale</h3>
+
+<table>
+<thead><tr>
+<th>Label</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>high</td>
+<td>Direct source, configuration, or runtime evidence supports the finding, with no material unresolved reachability or exploitability blocker.</td>
+</tr>
+<tr>
+<td>medium</td>
+<td>Source evidence supports a plausible issue, but runtime behavior, deployment configuration, role reachability, type constraints, or exploit reliability still need proof.</td>
+</tr>
+<tr>
+<td>low</td>
+<td>Weak or incomplete evidence; include only when the user explicitly wants follow-up candidates in the final report.</td>
+</tr>
+</tbody></table>
+
+<h3 id="no-findings">No findings</h3>
+
+<p>No actionable security finding survived the final diff scan. One candidate, <code>CAND-DIFF-001</code>, was discovered during review of the new realpath containment helper: a dangling symlink/junction could make <code>realpath()</code> return <code>ENOENT</code>, after which the helper accepted an inside ancestor before write preparation. That candidate was validated with a focused failing test, fixed by <code>lstat()</code>-checking ENOENT paths for symlinks before ancestor fallback, and revalidated with passing tests. Its candidate ledger contains discovery, validation, and attack-path receipts.</p>
+
+<h2 id="reviewed-surfaces">Reviewed Surfaces</h2>
+
+<table>
+<thead><tr>
+<th>Surface</th>
+<th>Risk Area</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Default config policy</td>
+<td>Secret exposure / write-to-execute composition</td>
+<td>No issue found</td>
+<td>Env files, compose files, and scripts are separated across readable, writable, env-specific, and script policies in final code.</td>
+</tr>
+<tr>
+<td>Docker logs/inspect helpers</td>
+<td>Cross-project Docker data exposure</td>
+<td>No issue found</td>
+<td>Both helpers validate the target through compose project container discovery before invoking Docker.</td>
+</tr>
+<tr>
+<td>Env file mutation</td>
+<td>Injection / symlink escape</td>
+<td>No issue found</td>
+<td>Keys are grammar-checked, CR/LF values are rejected, and configured env paths must realpath inside the project.</td>
+</tr>
+<tr>
+<td><code>exec_in</code> and <code>run_script</code></td>
+<td>Secret disclosure / host command execution</td>
+<td>No issue found</td>
+<td>Raw disclosure binaries were removed; <code>run_script</code> rejects scripts writable through MCP policy. <code>curl</code> and <code>wget</code> remain documented accepted diagnostic risk.</td>
+</tr>
+<tr>
+<td>File operations realpath containment</td>
+<td>Path traversal / symlink escape</td>
+<td>Rejected after fix</td>
+<td>Candidate <code>CAND-DIFF-001</code> found a dangling symlink edge case during this scan; final code rejects dangling symlink ancestors and focused tests pass.</td>
+</tr>
+<tr>
+<td>MCP tool wiring</td>
+<td>Authorization bypass of helper controls</td>
+<td>No issue found</td>
+<td><code>logs</code> and <code>inspect</code> handlers pass configured <code>cwd</code>; file/env/script handlers route through hardened helpers.</td>
+</tr>
+</tbody></table>
+
+<h2 id="open-questions-and-follow-up">Open Questions And Follow Up</h2>
+
+<ul><li>If deployments intentionally override <code>readableGlobs</code>, <code>writableGlobs</code>, or <code>allowedScripts</code>, run a config-specific review of the private <code>config.json</code> files for reintroduced env, compose, or script overlaps.</li><li>If this tool is used outside dev/stage, revisit the accepted diagnostic risk for <code>curl</code> and <code>wget</code> in <code>exec_in</code>.</li></ul>
+    </main>
+  </div>
+  <script>
+    const toggle = document.getElementById('navToggle');
+    const icon = document.getElementById('navToggleIcon');
+    const collapsedKey = 'codex-security-report:sidebar-collapsed';
+
+    function setCollapsed(collapsed) {
+      document.body.classList.toggle('sidebar-collapsed', collapsed);
+      if (toggle) {
+        toggle.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+        toggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        toggle.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      }
+      if (icon) icon.setAttribute('d', collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6');
+      try { localStorage.setItem(collapsedKey, collapsed ? '1' : '0'); } catch {}
+    }
+
+    try { setCollapsed(localStorage.getItem(collapsedKey) === '1'); } catch {}
+    if (toggle) toggle.addEventListener('click', () => setCollapsed(!document.body.classList.contains('sidebar-collapsed')));
+
+    const tocLinks = Array.from(document.querySelectorAll('.toc a'));
+    const sections = tocLinks.map((link) => {
+      const id = decodeURIComponent(link.getAttribute('href').slice(1));
+      return [link, document.getElementById(id)];
+    }).filter((pair) => pair[1]);
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (!visible) return;
+      tocLinks.forEach((link) => link.parentElement.classList.remove('active'));
+      const active = tocLinks.find((link) => link.getAttribute('href') === '#' + visible.target.id);
+      if (active) active.parentElement.classList.add('active');
+    }, { rootMargin: '-10% 0px -75% 0px', threshold: [0, 1] });
+
+    sections.forEach(([, section]) => observer.observe(section));
+  </script>
+</body>
+</html>

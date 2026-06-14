@@ -23,18 +23,22 @@ export async function composeConfig({ runner = runCommand, cwd } = {}) {
   return parseJson(result.stdout, "docker compose config");
 }
 
-export async function logs({ runner = runCommand, container, tail = 200 } = {}) {
+export async function logs({ runner = runCommand, cwd, container, tail = 200 } = {}) {
+  const projectState = await listProjectContainers({ runner, cwd });
+  assertKnownContainer(projectState, container);
   const result = await runner("docker", [
     "logs",
     "--tail",
     String(tail),
     container
-  ]);
+  ], { cwd });
   return result.stdout;
 }
 
-export async function inspect({ runner = runCommand, container } = {}) {
-  const result = await runner("docker", ["inspect", container]);
+export async function inspect({ runner = runCommand, cwd, container } = {}) {
+  const projectState = await listProjectContainers({ runner, cwd });
+  assertKnownContainer(projectState, container);
+  const result = await runner("docker", ["inspect", container], { cwd });
   return parseJson(result.stdout, "docker inspect");
 }
 

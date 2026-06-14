@@ -2,18 +2,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULT_WRITABLE_GLOBS = [
-  "docker-compose.yml",
   "nginx-vhost/*",
-  "*.conf",
-  "start",
-  "update"
+  "*.conf"
 ];
 
 const DEFAULT_READABLE_GLOBS = [
+  "docker-compose.yml",
   ...DEFAULT_WRITABLE_GLOBS,
-  ".env",
-  "strata.env",
-  "*.env"
+  "start",
+  "update"
 ];
 
 const DEFAULT_DENY_GLOBS = [".ssh/*", "**/id_rsa*", "**/id_ed25519*"];

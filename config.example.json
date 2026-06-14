@@ -1,21 +1,15 @@
 {
   "composeProjectDir": "/srv/example-app",
   "writableGlobs": [
-    "docker-compose.yml",
     "nginx-vhost/*",
-    "*.conf",
-    "start",
-    "update"
+    "*.conf"
   ],
   "readableGlobs": [
     "docker-compose.yml",
     "nginx-vhost/*",
     "*.conf",
     "start",
-    "update",
-    ".env",
-    "example.env",
-    "*.env"
+    "update"
   ],
   "denyGlobs": [
     ".ssh/*",

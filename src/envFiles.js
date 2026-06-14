@@ -1,4 +1,6 @@
-import { readFileTool, writeReadableFileWithBackup } from "./fileOps.js";
+import fs from "node:fs/promises";
+import { assertRealPathInsideProject, writeReadableFileWithBackup } from "./fileOps.js";
+import { resolveProjectPath } from "./pathPolicy.js";
 
 function wildcardToRegExp(pattern) {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*");
@@ -53,7 +55,12 @@ export async function readEnv({ config, service, composeConfig } = {}) {
 
   for (const file of config.envFiles) {
     try {
-      files[file] = maskEnv(parseEnv(await readFileTool(config, file)), config.envProtectedPatterns);
+      const resolved = resolveProjectPath(config, file);
+      await assertRealPathInsideProject(config, resolved);
+      files[file] = maskEnv(
+        parseEnv(await fs.readFile(resolved.absolutePath, "utf8")),
+        config.envProtectedPatterns
+      );
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
@@ -93,14 +100,31 @@ function updateEnvContent(content, key, value) {
   return nextLines.join("\n");
 }
 
+function validateEnvAssignment(key, value) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+    throw new Error(`Invalid env key: ${key}`);
+  }
+  if (/[\r\n]/.test(value)) {
+    throw new Error("Env value must not contain newlines");
+  }
+}
+
 export async function setEnvVar({ config, file, key, value } = {}) {
   if (!config.envFiles.includes(file)) {
     throw new Error(`Path is not configured env file: ${file}`);
   }
+  validateEnvAssignment(key, value);
   if (isProtectedKey(key, config.envProtectedPatterns)) {
     throw new Error(`Refusing to edit protected env key: ${key}`);
   }
 
-  const content = await readFileTool(config, file);
-  return writeReadableFileWithBackup(config, file, updateEnvContent(content, key, value));
+  const resolved = resolveProjectPath(config, file);
+  await assertRealPathInsideProject(config, resolved);
+  const content = await fs.readFile(resolved.absolutePath, "utf8");
+  return writeReadableFileWithBackup(
+    config,
+    file,
+    updateEnvContent(content, key, value),
+    { skipReadableCheck: true }
+  );
 }

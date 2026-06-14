@@ -13,7 +13,7 @@ const config = loadConfig({}, "D:/srv/project");
 
 test("allows configured readable and writable paths", () => {
   assert.equal(canRead(config, "docker-compose.yml"), true);
-  assert.equal(canWrite(config, "docker-compose.yml"), true);
+  assert.equal(canWrite(config, "docker-compose.yml"), false);
 
   assert.equal(canRead(config, "nginx-vhost/site.conf"), true);
   assert.equal(canWrite(config, "nginx-vhost/site.conf"), true);
@@ -21,8 +21,8 @@ test("allows configured readable and writable paths", () => {
   assert.equal(canCopyDestination(config, "nginx-vhost/site.conf"), true);
 });
 
-test("allows env files for reading but not whole-file writing", () => {
-  assert.equal(canRead(config, ".env"), true);
+test("denies generic env file reads and whole-file writes", () => {
+  assert.equal(canRead(config, ".env"), false);
   assert.equal(canWrite(config, ".env"), false);
   assert.equal(canDelete(config, ".env"), false);
 });

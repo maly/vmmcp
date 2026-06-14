@@ -46,32 +46,97 @@ test("composeConfig runs docker compose config with json output", async () => {
   assert.deepEqual(calls[0].args, ["compose", "config", "--format", "json"]);
 });
 
-test("logs runs docker logs with default tail", async () => {
-  const { runner, calls } = createRunner("line one\nline two\n");
+test("logs validates a known container before reading logs", async () => {
+  const rows = [{ Name: "project-web-1", Service: "web" }];
+  const calls = [];
+  const runner = async (file, args, options) => {
+    calls.push({ file, args, options });
+    return {
+      stdout: args[1] === "ps" ? JSON.stringify(rows) : "line one\nline two\n",
+      stderr: "",
+      code: 0
+    };
+  };
 
-  const result = await logs({ runner, container: "web" });
+  const result = await logs({ runner, cwd: "D:/srv/project", container: "project-web-1" });
 
   assert.equal(result, "line one\nline two\n");
   assert.equal(calls[0].file, "docker");
-  assert.deepEqual(calls[0].args, ["logs", "--tail", "200", "web"]);
+  assert.deepEqual(calls.map((call) => call.args), [
+    ["compose", "ps", "--format", "json"],
+    ["logs", "--tail", "200", "project-web-1"]
+  ]);
 });
 
 test("logs accepts an explicit tail", async () => {
-  const { runner, calls } = createRunner("line\n");
+  const rows = [{ Name: "project-web-1", Service: "web" }];
+  const calls = [];
+  const runner = async (file, args, options) => {
+    calls.push({ file, args, options });
+    return {
+      stdout: args[1] === "ps" ? JSON.stringify(rows) : "line\n",
+      stderr: "",
+      code: 0
+    };
+  };
 
-  await logs({ runner, container: "web", tail: 50 });
+  await logs({ runner, cwd: "D:/srv/project", container: "project-web-1", tail: 50 });
 
-  assert.deepEqual(calls[0].args, ["logs", "--tail", "50", "web"]);
+  assert.deepEqual(calls[1].args, ["logs", "--tail", "50", "project-web-1"]);
 });
 
-test("inspect runs docker inspect and parses json", async () => {
-  const { runner, calls } = createRunner('[{"Name":"/web"}]');
+test("logs rejects unknown containers before docker logs", async () => {
+  const rows = [{ Name: "project-web-1", Service: "web" }];
+  const { calls } = createRunner(JSON.stringify(rows));
+  const runner = async (file, args, options) => {
+    calls.push({ file, args, options });
+    return { stdout: JSON.stringify(rows), stderr: "", code: 0 };
+  };
 
-  const result = await inspect({ runner, container: "web" });
+  await assert.rejects(
+    () => logs({ runner, cwd: "D:/srv/project", container: "other-db-1" }),
+    /Unknown compose container/
+  );
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].args, ["compose", "ps", "--format", "json"]);
+});
 
-  assert.deepEqual(result, [{ Name: "/web" }]);
+test("inspect validates a known container before docker inspect", async () => {
+  const rows = [{ Name: "project-web-1", Service: "web" }];
+  const calls = [];
+  const runner = async (file, args, options) => {
+    calls.push({ file, args, options });
+    return {
+      stdout: args[1] === "ps" ? JSON.stringify(rows) : '[{"Name":"/project-web-1"}]',
+      stderr: "",
+      code: 0
+    };
+  };
+
+  const result = await inspect({ runner, cwd: "D:/srv/project", container: "project-web-1" });
+
+  assert.deepEqual(result, [{ Name: "/project-web-1" }]);
   assert.equal(calls[0].file, "docker");
-  assert.deepEqual(calls[0].args, ["inspect", "web"]);
+  assert.deepEqual(calls.map((call) => call.args), [
+    ["compose", "ps", "--format", "json"],
+    ["inspect", "project-web-1"]
+  ]);
+});
+
+test("inspect rejects unknown containers before docker inspect", async () => {
+  const rows = [{ Name: "project-web-1", Service: "web" }];
+  const calls = [];
+  const runner = async (file, args, options) => {
+    calls.push({ file, args, options });
+    return { stdout: JSON.stringify(rows), stderr: "", code: 0 };
+  };
+
+  await assert.rejects(
+    () => inspect({ runner, cwd: "D:/srv/project", container: "other-db-1" }),
+    /Unknown compose container/
+  );
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].args, ["compose", "ps", "--format", "json"]);
 });
 
 test("listProjectContainers filters compose project labels when present", async () => {

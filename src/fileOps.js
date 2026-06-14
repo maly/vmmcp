@@ -20,12 +20,71 @@ function backupDir(config, relativePath) {
   return path.join(config.composeProjectDir, ".mcp-backups", ...relativePath.split("/"));
 }
 
+function isConfiguredEnvFile(config, inputPath) {
+  return config.envFiles.includes(inputPath);
+}
+
 async function pathExists(absolutePath) {
   try {
     await fs.access(absolutePath);
     return true;
   } catch {
     return false;
+  }
+}
+
+function isInsideRoot(root, target) {
+  const relative = path.relative(root, target);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+export async function assertRealPathInsideProject(
+  config,
+  resolved,
+  { allowMissingLeaf = false } = {}
+) {
+  const root = await fs.realpath(config.composeProjectDir);
+  let target;
+  const realPathOrDanglingSymlink = async (candidate) => {
+    try {
+      return await fs.realpath(candidate);
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        try {
+          const stat = await fs.lstat(candidate);
+          if (stat.isSymbolicLink()) {
+            throw new Error(`Path resolves outside compose project: ${resolved.relativePath}`);
+          }
+        } catch (lstatError) {
+          if (lstatError.code !== "ENOENT") throw lstatError;
+        }
+      }
+      throw error;
+    }
+  };
+
+  try {
+    target = await realPathOrDanglingSymlink(resolved.absolutePath);
+  } catch (error) {
+    if (!allowMissingLeaf || error.code !== "ENOENT") {
+      throw error;
+    }
+    let ancestor = path.dirname(resolved.absolutePath);
+    while (true) {
+      try {
+        target = await realPathOrDanglingSymlink(ancestor);
+        break;
+      } catch (ancestorError) {
+        if (ancestorError.code !== "ENOENT") throw ancestorError;
+        const next = path.dirname(ancestor);
+        if (next === ancestor) throw ancestorError;
+        ancestor = next;
+      }
+    }
+  }
+
+  if (!isInsideRoot(root, target)) {
+    throw new Error(`Path resolves outside compose project: ${resolved.relativePath}`);
   }
 }
 
@@ -48,6 +107,7 @@ export async function readFileTool(config, inputPath) {
   }
 
   const resolved = resolveProjectPath(config, inputPath);
+  await assertRealPathInsideProject(config, resolved);
   return fs.readFile(resolved.absolutePath, "utf8");
 }
 
@@ -59,12 +119,13 @@ export async function writeFileTool(config, inputPath, content) {
   return writeReadableFileWithBackup(config, inputPath, content);
 }
 
-export async function writeReadableFileWithBackup(config, inputPath, content) {
-  if (!canRead(config, inputPath)) {
+export async function writeReadableFileWithBackup(config, inputPath, content, options = {}) {
+  if (!options.skipReadableCheck && !canRead(config, inputPath)) {
     throw new Error(`Path is not readable: ${inputPath}`);
   }
 
   const resolved = resolveProjectPath(config, inputPath);
+  await assertRealPathInsideProject(config, resolved, { allowMissingLeaf: true });
   const id = await createBackup(config, resolved);
   await fs.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
   await fs.writeFile(resolved.absolutePath, content, "utf8");
@@ -81,6 +142,8 @@ export async function copyFileTool(config, src, dst) {
 
   const resolvedSrc = resolveProjectPath(config, src);
   const resolvedDst = resolveProjectPath(config, dst);
+  await assertRealPathInsideProject(config, resolvedSrc);
+  await assertRealPathInsideProject(config, resolvedDst, { allowMissingLeaf: true });
   const id = await createBackup(config, resolvedDst);
   await fs.mkdir(path.dirname(resolvedDst.absolutePath), { recursive: true });
   await fs.copyFile(resolvedSrc.absolutePath, resolvedDst.absolutePath);
@@ -93,13 +156,14 @@ export async function deleteFileTool(config, inputPath) {
   }
 
   const resolved = resolveProjectPath(config, inputPath);
+  await assertRealPathInsideProject(config, resolved);
   const id = await createBackup(config, resolved);
   await fs.unlink(resolved.absolutePath);
   return { backupId: id };
 }
 
 export async function listBackupsTool(config, inputPath) {
-  if (!canRead(config, inputPath)) {
+  if (!canRead(config, inputPath) && !isConfiguredEnvFile(config, inputPath)) {
     throw new Error(`Path is not readable: ${inputPath}`);
   }
 
@@ -114,7 +178,7 @@ export async function listBackupsTool(config, inputPath) {
 }
 
 export async function restoreFileTool(config, inputPath, inputBackupId) {
-  if (!canRead(config, inputPath)) {
+  if (!canRead(config, inputPath) && !isConfiguredEnvFile(config, inputPath)) {
     throw new Error(`Path is not restorable: ${inputPath}`);
   }
 
@@ -129,6 +193,7 @@ export async function restoreFileTool(config, inputPath, inputBackupId) {
   }
 
   await fs.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
+  await assertRealPathInsideProject(config, resolved, { allowMissingLeaf: true });
   await fs.copyFile(path.join(backupDir(config, resolved.relativePath), id), resolved.absolutePath);
   return { backupId: id };
 }

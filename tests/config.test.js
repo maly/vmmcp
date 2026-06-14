@@ -14,21 +14,15 @@ test("loadConfig returns proposal defaults", () => {
 
   assert.equal(config.composeProjectDir, "D:\\srv\\project");
   assert.deepEqual(config.writableGlobs, [
-    "docker-compose.yml",
     "nginx-vhost/*",
-    "*.conf",
-    "start",
-    "update"
+    "*.conf"
   ]);
   assert.deepEqual(config.readableGlobs, [
     "docker-compose.yml",
     "nginx-vhost/*",
     "*.conf",
     "start",
-    "update",
-    ".env",
-    "strata.env",
-    "*.env"
+    "update"
   ]);
   assert.deepEqual(config.denyGlobs, [".ssh/*", "**/id_rsa*", "**/id_ed25519*"]);
   assert.deepEqual(config.envFiles, [".env", "strata.env"]);
@@ -39,12 +33,16 @@ test("loadConfig returns proposal defaults", () => {
     "*TOKEN*"
   ]);
   assert.deepEqual(config.allowedScripts, ["start", "update"]);
+  assert.deepEqual(
+    config.allowedScripts.filter((script) => config.writableGlobs.includes(script)),
+    []
+  );
 });
 
 test("loadConfig accepts explicit config object overrides", () => {
   const config = loadConfig({
     composeProjectDir: "C:/apps/example",
-    writableGlobs: ["docker-compose.yml", "sites/*.conf"],
+    writableGlobs: ["sites/*.conf"],
     readableGlobs: ["docker-compose.yml", ".env"],
     denyGlobs: [".ssh/*", "**/private*"],
     envFiles: [".env", "local.env"],
@@ -53,7 +51,7 @@ test("loadConfig accepts explicit config object overrides", () => {
   }, "D:/unused");
 
   assert.equal(config.composeProjectDir, "C:\\apps\\example");
-  assert.deepEqual(config.writableGlobs, ["docker-compose.yml", "sites/*.conf"]);
+  assert.deepEqual(config.writableGlobs, ["sites/*.conf"]);
   assert.deepEqual(config.readableGlobs, ["docker-compose.yml", ".env"]);
   assert.deepEqual(config.denyGlobs, [".ssh/*", "**/private*"]);
   assert.deepEqual(config.envFiles, [".env", "local.env"]);
@@ -66,7 +64,7 @@ test("loadConfigFile reads JSON config from disk", async () => {
   const configPath = path.join(root, "config.json");
   await fs.writeFile(configPath, JSON.stringify({
     composeProjectDir: "./project",
-    writableGlobs: ["docker-compose.yml", "vhosts/*.conf"],
+    writableGlobs: ["vhosts/*.conf"],
     readableGlobs: ["docker-compose.yml", ".env"],
     denyGlobs: [".ssh/*"],
     envFiles: [".env"],
@@ -77,7 +75,7 @@ test("loadConfigFile reads JSON config from disk", async () => {
   const config = await loadConfigFile(configPath);
 
   assert.equal(config.composeProjectDir, path.resolve(root, "project"));
-  assert.deepEqual(config.writableGlobs, ["docker-compose.yml", "vhosts/*.conf"]);
+  assert.deepEqual(config.writableGlobs, ["vhosts/*.conf"]);
   assert.deepEqual(config.readableGlobs, ["docker-compose.yml", ".env"]);
   assert.deepEqual(config.denyGlobs, [".ssh/*"]);
   assert.deepEqual(config.envFiles, [".env"]);

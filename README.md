@@ -75,11 +75,8 @@ Příklad:
 {
   "composeProjectDir": "/srv/example-app",
   "writableGlobs": [
-    "docker-compose.yml",
     "nginx-vhost/*",
-    "*.conf",
-    "start",
-    "update"
+    "*.conf"
   ],
   "readableGlobs": [
     "docker-compose.yml",

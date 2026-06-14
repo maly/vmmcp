@@ -1,19 +1,16 @@
 import path from "node:path";
 import { runCommand } from "./commandRunner.js";
 import { assertKnownContainer, listProjectContainers } from "./containers.js";
+import { canWrite } from "./pathPolicy.js";
 
 export const EXEC_BINARIES = [
   "nginx",
-  "cat",
   "grep",
   "curl",
   "wget",
   "getent",
   "nslookup",
-  "env",
   "ls",
-  "head",
-  "tail",
   "test"
 ];
 
@@ -37,6 +34,9 @@ export async function execIn({ runner = runCommand, cwd, container, argv } = {})
 export async function runScript({ config, runner = runCommand, name } = {}) {
   if (!config.allowedScripts.includes(name)) {
     throw new Error(`Script is not allowed: ${name}`);
+  }
+  if (canWrite(config, name)) {
+    throw new Error(`Refusing to run script writable through MCP policy: ${name}`);
   }
 
   const scriptPath = path.join(config.composeProjectDir, name);

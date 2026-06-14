@@ -98,7 +98,7 @@ export function createToolDefinitions({ config, runner }) {
         tail: integerProperty("Number of log lines to return.", 1)
       }, ["container"]),
       annotations: { readOnlyHint: true },
-      handler: (args) => logs({ runner, container: args.container, tail: args.tail ?? 200 })
+      handler: (args) => logs({ runner, cwd, container: args.container, tail: args.tail ?? 200 })
     },
     {
       name: "inspect",
@@ -107,7 +107,7 @@ export function createToolDefinitions({ config, runner }) {
         container: stringProperty("Container name.")
       }, ["container"]),
       annotations: { readOnlyHint: true },
-      handler: (args) => inspectContainer({ runner, container: args.container })
+      handler: (args) => inspectContainer({ runner, cwd, container: args.container })
     },
     {
       name: "read_file",

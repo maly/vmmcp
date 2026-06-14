@@ -88,7 +88,7 @@ test("readEnv includes masked compose environment for a service", async () => {
 });
 
 test("setEnvVar updates an existing non-protected key and creates backup", async () => {
-  const { config } = await createProject();
+  const { root, config } = await createProject();
 
   await setEnvVar({
     config,
@@ -97,7 +97,7 @@ test("setEnvVar updates an existing non-protected key and creates backup", async
     value: "changed.test"
   });
 
-  const content = await readFileTool(config, ".env");
+  const content = await fs.readFile(path.join(root, ".env"), "utf8");
   assert.match(content, /# primary env/);
   assert.match(content, /NORMAL_HOST=changed\.test/);
   assert.match(content, /PLAIN_VALUE=visible/);
@@ -105,7 +105,7 @@ test("setEnvVar updates an existing non-protected key and creates backup", async
 });
 
 test("setEnvVar appends a new non-protected key", async () => {
-  const { config } = await createProject();
+  const { root, config } = await createProject();
 
   await setEnvVar({
     config,
@@ -114,7 +114,7 @@ test("setEnvVar appends a new non-protected key", async () => {
     value: "new.test"
   });
 
-  assert.match(await readFileTool(config, ".env"), /NEW_HOST=new\.test\n$/);
+  assert.match(await fs.readFile(path.join(root, ".env"), "utf8"), /NEW_HOST=new\.test\n$/);
 });
 
 test("setEnvVar rejects protected keys and unconfigured env files", async () => {
@@ -127,5 +127,50 @@ test("setEnvVar rejects protected keys and unconfigured env files", async () => 
   await assert.rejects(
     () => setEnvVar({ config, file: "other.env", key: "NORMAL_HOST", value: "changed" }),
     /not configured env file/
+  );
+});
+
+test("setEnvVar rejects env syntax injection", async () => {
+  const { config } = await createProject();
+
+  await assert.rejects(
+    () => setEnvVar({
+      config,
+      file: ".env",
+      key: "NORMAL_HOST",
+      value: "safe\nDB_PASSWORD=attacker"
+    }),
+    /must not contain newlines/
+  );
+  await assert.rejects(
+    () => setEnvVar({
+      config,
+      file: ".env",
+      key: "NORMAL_HOST",
+      value: "safe\rDB_PASSWORD=attacker"
+    }),
+    /must not contain newlines/
+  );
+  await assert.rejects(
+    () => setEnvVar({
+      config,
+      file: ".env",
+      key: "BAD KEY",
+      value: "safe"
+    }),
+    /Invalid env key/
+  );
+});
+
+test("readEnv rejects symlink escapes from configured env files", async () => {
+  const { root, config } = await createProject();
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "vm-mcp-env-outside-"));
+  await fs.writeFile(path.join(outside, ".env"), "PLAIN_VALUE=outside\n");
+  await fs.symlink(outside, path.join(root, "linked-env"), "junction");
+  config.envFiles = ["linked-env/.env"];
+
+  await assert.rejects(
+    () => readEnv({ config }),
+    /outside compose project/
   );
 });
