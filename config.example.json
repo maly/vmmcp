@@ -1,0 +1,33 @@
+{
+  "composeProjectDir": "/srv/example-app",
+  "writableGlobs": [
+    "nginx-vhost/*",
+    "*.conf"
+  ],
+  "readableGlobs": [
+    "docker-compose.yml",
+    "nginx-vhost/*",
+    "*.conf",
+    "start",
+    "update"
+  ],
+  "denyGlobs": [
+    ".ssh/*",
+    "**/id_rsa*",
+    "**/id_ed25519*"
+  ],
+  "envFiles": [
+    ".env",
+    "example.env"
+  ],
+  "envProtectedPatterns": [
+    "*PASSWORD*",
+    "*API_KEY*",
+    "*SECRET*",
+    "*TOKEN*"
+  ],
+  "allowedScripts": [
+    "start",
+    "update"
+  ]
+}

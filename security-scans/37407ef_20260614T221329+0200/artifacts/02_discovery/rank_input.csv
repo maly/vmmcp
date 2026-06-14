@@ -1,0 +1,8 @@
+path,area,preview
+config.example.json,diff,"{   ""composeProjectDir"": ""/srv/example-app"",   ""writableGlobs"": [     ""nginx-vhost/*"",     ""*.conf""   ],   ""readableGlobs"": [     ""docker-compose.yml"",     ""nginx-vhost/*"",     ""*.conf"",     ""start"", "
+src/config.js,diff,"import fs from ""node:fs/promises""; import path from ""node:path"";  const DEFAULT_WRITABLE_GLOBS = [   ""nginx-vhost/*"",   ""*.conf"" ];  const DEFAULT_READABLE_GLOBS = [   ""docker-compose.yml"",   ...DEFAU"
+src/docker.js,diff,"import { runCommand } from ""./commandRunner.js""; import {   assertKnownContainer,   assertKnownService,   listProjectContainers } from ""./containers.js"";  function parseJson(stdout, label) {   try {  "
+src/envFiles.js,diff,"import fs from ""node:fs/promises""; import { assertRealPathInsideProject, writeReadableFileWithBackup } from ""./fileOps.js""; import { resolveProjectPath } from ""./pathPolicy.js"";  function wildcardToRe"
+src/execIn.js,diff,"import path from ""node:path""; import { runCommand } from ""./commandRunner.js""; import { assertKnownContainer, listProjectContainers } from ""./containers.js""; import { canWrite } from ""./pathPolicy.js"""
+src/fileOps.js,diff,"import fs from ""node:fs/promises""; import path from ""node:path""; import {   canCopyDestination,   canDelete,   canRead,   canWrite,   resolveProjectPath } from ""./pathPolicy.js"";  let backupCounter = "
+src/tools.js,diff,"import {   CallToolRequestSchema,   ListToolsRequestSchema } from ""@modelcontextprotocol/sdk/types.js""; import {   composeConfig,   composeDown,   composePull,   composeUp,   inspect as inspectContain"
