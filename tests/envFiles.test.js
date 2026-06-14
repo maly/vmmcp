@@ -21,7 +21,7 @@ async function createProject() {
   await fs.writeFile(path.join(root, "strata.env"), "STRATA_HOST=strata.test\n");
   return {
     root,
-    config: loadConfig({ COMPOSE_PROJECT_DIR: root }, root)
+    config: loadConfig({ composeProjectDir: root }, root)
   };
 }
 

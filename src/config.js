@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 
 const DEFAULT_WRITABLE_GLOBS = [
@@ -31,15 +32,42 @@ function parseList(value, fallback) {
 
 export function loadConfig(env = process.env, cwd = process.cwd()) {
   return {
-    composeProjectDir: path.resolve(env.COMPOSE_PROJECT_DIR || cwd),
-    writableGlobs: parseList(env.WRITABLE_GLOBS, DEFAULT_WRITABLE_GLOBS),
-    readableGlobs: parseList(env.READABLE_GLOBS, DEFAULT_READABLE_GLOBS),
-    denyGlobs: parseList(env.DENY_GLOBS, DEFAULT_DENY_GLOBS),
-    envFiles: parseList(env.ENV_FILES, DEFAULT_ENV_FILES),
+    composeProjectDir: path.resolve(cwd, env.composeProjectDir || cwd),
+    writableGlobs: parseList(env.writableGlobs, DEFAULT_WRITABLE_GLOBS),
+    readableGlobs: parseList(env.readableGlobs, DEFAULT_READABLE_GLOBS),
+    denyGlobs: parseList(env.denyGlobs, DEFAULT_DENY_GLOBS),
+    envFiles: parseList(env.envFiles, DEFAULT_ENV_FILES),
     envProtectedPatterns: parseList(
-      env.ENV_PROTECTED_PATTERNS,
+      env.envProtectedPatterns,
       DEFAULT_ENV_PROTECTED_PATTERNS
     ),
-    allowedScripts: parseList(env.ALLOWED_SCRIPTS, DEFAULT_ALLOWED_SCRIPTS)
+    allowedScripts: parseList(env.allowedScripts, DEFAULT_ALLOWED_SCRIPTS)
   };
+}
+
+export function findConfigPath(argv = process.argv, cwd = process.cwd()) {
+  const configIndex = argv.indexOf("--config");
+  if (configIndex !== -1) {
+    const value = argv[configIndex + 1];
+    if (!value) {
+      throw new Error("--config requires a path");
+    }
+    return path.resolve(cwd, value);
+  }
+
+  return path.resolve(cwd, "config.json");
+}
+
+export async function loadConfigFile(configPath) {
+  const absoluteConfigPath = path.resolve(configPath);
+  const raw = await fs.readFile(absoluteConfigPath, "utf8");
+  let parsed;
+
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Failed to parse config JSON ${absoluteConfigPath}: ${error.message}`);
+  }
+
+  return loadConfig(parsed, path.dirname(absoluteConfigPath));
 }

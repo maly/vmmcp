@@ -89,7 +89,7 @@ test("execIn rejects unknown containers before docker exec", async () => {
 
 test("runScript runs only configured scripts without shell", async () => {
   const { runner, calls } = createRunner();
-  const config = loadConfig({ COMPOSE_PROJECT_DIR: "D:/srv/project" }, "D:/srv/project");
+  const config = loadConfig({ composeProjectDir: "D:/srv/project" }, "D:/srv/project");
 
   await runScript({ config, runner, name: "start" });
 

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { test } from "node:test";
-import { loadConfig } from "../src/config.js";
+import {
+  findConfigPath,
+  loadConfig,
+  loadConfigFile
+} from "../src/config.js";
 
 test("loadConfig returns proposal defaults", () => {
   const config = loadConfig({}, "D:/srv/project");
@@ -34,15 +41,15 @@ test("loadConfig returns proposal defaults", () => {
   assert.deepEqual(config.allowedScripts, ["start", "update"]);
 });
 
-test("loadConfig accepts comma-separated env overrides", () => {
+test("loadConfig accepts explicit config object overrides", () => {
   const config = loadConfig({
-    COMPOSE_PROJECT_DIR: "C:/apps/example",
-    WRITABLE_GLOBS: "docker-compose.yml,sites/*.conf",
-    READABLE_GLOBS: "docker-compose.yml,.env",
-    DENY_GLOBS: ".ssh/*,**/private*",
-    ENV_FILES: ".env,local.env",
-    ENV_PROTECTED_PATTERNS: "*PASSWORD*,*TOKEN*",
-    ALLOWED_SCRIPTS: "start,update"
+    composeProjectDir: "C:/apps/example",
+    writableGlobs: ["docker-compose.yml", "sites/*.conf"],
+    readableGlobs: ["docker-compose.yml", ".env"],
+    denyGlobs: [".ssh/*", "**/private*"],
+    envFiles: [".env", "local.env"],
+    envProtectedPatterns: ["*PASSWORD*", "*TOKEN*"],
+    allowedScripts: ["start", "update"]
   }, "D:/unused");
 
   assert.equal(config.composeProjectDir, "C:\\apps\\example");
@@ -52,4 +59,39 @@ test("loadConfig accepts comma-separated env overrides", () => {
   assert.deepEqual(config.envFiles, [".env", "local.env"]);
   assert.deepEqual(config.envProtectedPatterns, ["*PASSWORD*", "*TOKEN*"]);
   assert.deepEqual(config.allowedScripts, ["start", "update"]);
+});
+
+test("loadConfigFile reads JSON config from disk", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "vm-mcp-config-"));
+  const configPath = path.join(root, "config.json");
+  await fs.writeFile(configPath, JSON.stringify({
+    composeProjectDir: "./project",
+    writableGlobs: ["docker-compose.yml", "vhosts/*.conf"],
+    readableGlobs: ["docker-compose.yml", ".env"],
+    denyGlobs: [".ssh/*"],
+    envFiles: [".env"],
+    envProtectedPatterns: ["*PASSWORD*"],
+    allowedScripts: ["start"]
+  }));
+
+  const config = await loadConfigFile(configPath);
+
+  assert.equal(config.composeProjectDir, path.resolve(root, "project"));
+  assert.deepEqual(config.writableGlobs, ["docker-compose.yml", "vhosts/*.conf"]);
+  assert.deepEqual(config.readableGlobs, ["docker-compose.yml", ".env"]);
+  assert.deepEqual(config.denyGlobs, [".ssh/*"]);
+  assert.deepEqual(config.envFiles, [".env"]);
+  assert.deepEqual(config.envProtectedPatterns, ["*PASSWORD*"]);
+  assert.deepEqual(config.allowedScripts, ["start"]);
+});
+
+test("findConfigPath supports --config and defaults to config.json", () => {
+  assert.equal(
+    findConfigPath(["node", "src/server.js", "--config", "custom.json"], "D:/app"),
+    "D:\\app\\custom.json"
+  );
+  assert.equal(
+    findConfigPath(["node", "src/server.js"], "D:/app"),
+    "D:\\app\\config.json"
+  );
 });

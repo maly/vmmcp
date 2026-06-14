@@ -44,7 +44,11 @@ function waitForJsonRpcResponse(child, id) {
 }
 
 test("stdio server responds to initialize", async () => {
-  const child = spawn(process.execPath, ["src/server.js"], {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "vm-mcp-stdio-"));
+  const configPath = path.join(root, "config.json");
+  await fs.writeFile(configPath, JSON.stringify({ composeProjectDir: root }));
+
+  const child = spawn(process.execPath, ["src/server.js", "--config", configPath], {
     cwd: process.cwd(),
     stdio: ["pipe", "pipe", "pipe"]
   });
@@ -122,7 +126,7 @@ async function createMcpFixture() {
     root,
     calls,
     runner,
-    config: loadConfig({ COMPOSE_PROJECT_DIR: root }, root)
+    config: loadConfig({ composeProjectDir: root }, root)
   };
 }
 
