@@ -1,9 +1,11 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { fileURLToPath } from "node:url";
+import { runCommand } from "./commandRunner.js";
+import { loadConfig } from "./config.js";
 import { registerTools } from "./tools.js";
 
-export function createServer() {
+export function createServer({ config = loadConfig(), runner = runCommand } = {}) {
   const server = new Server(
     {
       name: "vm-mcp-devtools",
@@ -16,7 +18,7 @@ export function createServer() {
     }
   );
 
-  registerTools(server);
+  registerTools(server, { config, runner });
   return server;
 }
 
