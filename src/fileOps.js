@@ -56,6 +56,14 @@ export async function writeFileTool(config, inputPath, content) {
     throw new Error(`Path is not writable: ${inputPath}`);
   }
 
+  return writeReadableFileWithBackup(config, inputPath, content);
+}
+
+export async function writeReadableFileWithBackup(config, inputPath, content) {
+  if (!canRead(config, inputPath)) {
+    throw new Error(`Path is not readable: ${inputPath}`);
+  }
+
   const resolved = resolveProjectPath(config, inputPath);
   const id = await createBackup(config, resolved);
   await fs.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
