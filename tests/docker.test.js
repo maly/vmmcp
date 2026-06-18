@@ -36,6 +36,19 @@ test("ps runs docker compose ps with json output", async () => {
   assert.equal(calls[0].options.cwd, "D:/srv/project");
 });
 
+test("ps accepts docker compose ps JSONL output", async () => {
+  const { runner } = createRunner(
+    '{"Name":"project-web-1","Service":"web"}\n{"Name":"project-worker-1","Service":"worker"}\n'
+  );
+
+  const result = await ps({ runner, cwd: "D:/srv/project" });
+
+  assert.deepEqual(result, [
+    { Name: "project-web-1", Service: "web" },
+    { Name: "project-worker-1", Service: "worker" }
+  ]);
+});
+
 test("composeConfig runs docker compose config with json output", async () => {
   const { runner, calls } = createRunner('{"services":{"web":{"image":"nginx"}}}');
 
