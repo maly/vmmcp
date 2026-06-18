@@ -9,7 +9,14 @@ function parseJson(stdout, label) {
   try {
     return JSON.parse(stdout);
   } catch (error) {
-    throw new Error(`Failed to parse ${label} JSON: ${error.message}`);
+    try {
+      return stdout
+        .split(/\r?\n/)
+        .filter((line) => line.trim() !== "")
+        .map((line) => JSON.parse(line));
+    } catch {
+      throw new Error(`Failed to parse ${label} JSON: ${error.message}`);
+    }
   }
 }
 
