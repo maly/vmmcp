@@ -173,6 +173,28 @@ test("listProjectContainers filters compose project labels when present", async 
   assert.deepEqual([...project.containers], ["project-web-1"]);
 });
 
+test("listProjectContainers accepts docker compose ps JSONL output", async () => {
+  const { runner } = createRunner(
+    [
+      JSON.stringify({
+        Name: "project-web-1",
+        Service: "web",
+        Labels: "com.docker.compose.project=project,com.docker.compose.service=web"
+      }),
+      JSON.stringify({
+        Name: "project-worker-1",
+        Service: "worker",
+        Labels: "com.docker.compose.project=project,com.docker.compose.service=worker"
+      })
+    ].join("\n")
+  );
+
+  const project = await listProjectContainers({ runner, cwd: "D:/srv/project" });
+
+  assert.deepEqual([...project.services], ["web", "worker"]);
+  assert.deepEqual([...project.containers], ["project-web-1", "project-worker-1"]);
+});
+
 test("known service and container assertions reject unknown values", () => {
   const project = {
     services: new Set(["web"]),
