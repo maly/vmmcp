@@ -9,3 +9,4 @@ data/
 *.db
 .beads-credential-key
 .beads/
+config.json
