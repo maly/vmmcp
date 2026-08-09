@@ -35,6 +35,18 @@ export function parseEnv(content) {
 }
 
 export function maskEnv(entries, protectedPatterns) {
+  if (Array.isArray(entries)) {
+    return entries.map((entry) => {
+      if (typeof entry !== "string") return entry;
+      const index = entry.indexOf("=");
+      if (index === -1) return entry;
+      const key = entry.slice(0, index);
+      const value = entry.slice(index + 1);
+      return `${key}=${maskEnv({ [key]: value }, protectedPatterns)[key]}`;
+    });
+  }
+  if (entries === null || typeof entries !== "object") return entries;
+
   return Object.fromEntries(
     Object.entries(entries).map(([key, value]) => [
       key,
