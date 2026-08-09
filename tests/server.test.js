@@ -103,10 +103,18 @@ function createLinkedTransports() {
   return { clientTransport, serverTransport };
 }
 
-async function createMcpFixture() {
+async function createMcpFixture({
+  composeConfig = { services: {} },
+  inspectResult = []
+} = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "vm-mcp-server-"));
   await fs.mkdir(path.join(root, "nginx-vhost"));
   await fs.writeFile(path.join(root, "docker-compose.yml"), "services: {}\n");
+  await fs.writeFile(path.join(root, ".env"), [
+    "DB_PASSWORD=secret",
+    "NORMAL_HOST=visible.test",
+    ""
+  ].join("\n"));
   await fs.writeFile(path.join(root, "nginx-vhost", "app.conf"), "old\n");
 
   const calls = [];
@@ -115,6 +123,12 @@ async function createMcpFixture() {
     calls.push({ file, args, options });
     if (args[0] === "compose" && args[1] === "ps") {
       return { stdout: JSON.stringify(rows), stderr: "", code: 0 };
+    }
+    if (args[0] === "compose" && args[1] === "config") {
+      return { stdout: JSON.stringify(composeConfig), stderr: "", code: 0 };
+    }
+    if (args[0] === "inspect") {
+      return { stdout: JSON.stringify(inspectResult), stderr: "", code: 0 };
     }
     if (args[0] === "exec") {
       return { stdout: "exec ok\n", stderr: "", code: 0 };
@@ -128,6 +142,25 @@ async function createMcpFixture() {
     runner,
     config: loadConfig({ composeProjectDir: root }, root)
   };
+}
+
+async function withMcpClient(fixture, callback) {
+  const server = createServer({
+    config: fixture.config,
+    runner: fixture.runner
+  });
+  const client = new Client({ name: "vm-mcp-devtools-test", version: "0.0.0" });
+  const { clientTransport, serverTransport } = createLinkedTransports();
+
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  try {
+    await callback(client);
+  } finally {
+    await client.close();
+    await server.close();
+  }
 }
 
 test("MCP tools list and representative calls work through protocol", async () => {
@@ -198,4 +231,104 @@ test("MCP tools list and representative calls work through protocol", async () =
     await client.close();
     await server.close();
   }
+});
+
+test("inspect masks every environment value and preserves other fields", async () => {
+  const inspectedContainer = {
+    Config: {
+      Image: "example/web:latest",
+      Env: [
+        "DB_PASSWORD=hunter2",
+        "VIRTUAL_HOST=app.example.test",
+        "EMPTY="
+      ],
+      Labels: { "com.example.role": "web" }
+    },
+    ContainerConfig: {
+      Env: ["DEPLOY_ENV=production"]
+    },
+    State: { Status: "running" },
+    NetworkSettings: { Networks: { default: { IPAddress: "172.18.0.2" } } },
+    Mounts: [{ Type: "bind", Source: "/srv/app", Destination: "/app" }],
+    HostConfig: { PortBindings: { "80/tcp": [{ HostPort: "8080" }] } }
+  };
+  const fixture = await createMcpFixture({ inspectResult: [inspectedContainer] });
+
+  await withMcpClient(fixture, async (client) => {
+    const response = await client.callTool({
+      name: "inspect",
+      arguments: { container: "project-web-1" }
+    });
+    const text = response.content[0].text;
+    const [result] = JSON.parse(text);
+
+    assert.deepEqual(result.Config.Env, [
+      "DB_PASSWORD=****",
+      "VIRTUAL_HOST=****",
+      "EMPTY=****"
+    ]);
+    assert.deepEqual(result.ContainerConfig.Env, ["DEPLOY_ENV=****"]);
+    assert.doesNotMatch(text, /hunter2|app\.example\.test|production/);
+    assert.equal(result.Config.Image, inspectedContainer.Config.Image);
+    assert.deepEqual(result.Config.Labels, inspectedContainer.Config.Labels);
+    assert.deepEqual(result.State, inspectedContainer.State);
+    assert.deepEqual(result.NetworkSettings, inspectedContainer.NetworkSettings);
+    assert.deepEqual(result.Mounts, inspectedContainer.Mounts);
+    assert.deepEqual(result.HostConfig.PortBindings, inspectedContainer.HostConfig.PortBindings);
+  });
+});
+
+test("compose_config masks object and array environment values", async () => {
+  const composeConfig = {
+    services: {
+      web: {
+        image: "example/web:latest",
+        ports: ["8080:80"],
+        labels: { "com.example.role": "web" },
+        environment: {
+          API_TOKEN: "secret-token",
+          VIRTUAL_HOST: "app.example.test"
+        }
+      },
+      worker: {
+        image: "example/worker:latest",
+        environment: ["DEPLOY_ENV=production", "EMPTY="]
+      }
+    },
+    networks: { default: { name: "example_default" } }
+  };
+  const fixture = await createMcpFixture({ composeConfig });
+
+  await withMcpClient(fixture, async (client) => {
+    const response = await client.callTool({ name: "compose_config", arguments: {} });
+    const text = response.content[0].text;
+    const result = JSON.parse(text);
+
+    assert.deepEqual(result.services.web.environment, {
+      API_TOKEN: "****",
+      VIRTUAL_HOST: "****"
+    });
+    assert.deepEqual(result.services.worker.environment, [
+      "DEPLOY_ENV=****",
+      "EMPTY=****"
+    ]);
+    assert.doesNotMatch(text, /secret-token|app\.example\.test|production/);
+    assert.equal(result.services.web.image, composeConfig.services.web.image);
+    assert.deepEqual(result.services.web.ports, composeConfig.services.web.ports);
+    assert.deepEqual(result.services.web.labels, composeConfig.services.web.labels);
+    assert.equal(result.services.worker.image, composeConfig.services.worker.image);
+    assert.deepEqual(result.networks, composeConfig.networks);
+  });
+});
+
+test("read_env keeps its existing pattern-based masking", async () => {
+  const fixture = await createMcpFixture();
+
+  await withMcpClient(fixture, async (client) => {
+    const response = await client.callTool({ name: "read_env", arguments: {} });
+    const result = JSON.parse(response.content[0].text);
+
+    assert.equal(result.files[".env"].DB_PASSWORD, "****");
+    assert.equal(result.files[".env"].NORMAL_HOST, "visible.test");
+  });
 });

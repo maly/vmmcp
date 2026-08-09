@@ -22,6 +22,7 @@ import {
   restoreFileTool,
   writeFileTool
 } from "./fileOps.js";
+import { filterToolOutput } from "./outputFilter.js";
 
 const emptySchema = {
   type: "object",
@@ -54,12 +55,13 @@ function jsonText(value) {
   return JSON.stringify(value, null, 2);
 }
 
-function toolResult(value) {
-  if (typeof value === "string") {
-    return { content: [{ type: "text", text: value }] };
+function toolResult(toolName, value) {
+  const filtered = filterToolOutput(toolName, value);
+  if (typeof filtered === "string") {
+    return { content: [{ type: "text", text: filtered }] };
   }
 
-  return { content: [{ type: "text", text: jsonText(value) }] };
+  return { content: [{ type: "text", text: jsonText(filtered) }] };
 }
 
 function toolError(error) {
@@ -275,7 +277,10 @@ export function registerTools(server, context) {
     }
 
     try {
-      return toolResult(await handler(request.params.arguments ?? {}));
+      return toolResult(
+        request.params.name,
+        await handler(request.params.arguments ?? {})
+      );
     } catch (error) {
       return toolError(error);
     }
