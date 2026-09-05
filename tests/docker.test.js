@@ -77,8 +77,9 @@ test("logs validates a known container before reading logs", async () => {
   assert.equal(calls[0].file, "docker");
   assert.deepEqual(calls.map((call) => call.args), [
     ["compose", "ps", "--format", "json"],
-    ["logs", "--tail", "200", "project-web-1"]
+    ["-c", 'exec "$@" 2>&1', "--", "docker", "logs", "--tail", "200", "project-web-1"]
   ]);
+  assert.equal(calls[1].file, "sh");
 });
 
 test("logs accepts an explicit tail", async () => {
@@ -95,7 +96,7 @@ test("logs accepts an explicit tail", async () => {
 
   await logs({ runner, cwd: "D:/srv/project", container: "project-web-1", tail: 50 });
 
-  assert.deepEqual(calls[1].args, ["logs", "--tail", "50", "project-web-1"]);
+  assert.deepEqual(calls[1].args, ["-c", 'exec "$@" 2>&1', "--", "docker", "logs", "--tail", "50", "project-web-1"]);
 });
 
 test("logs rejects unknown containers before docker logs", async () => {

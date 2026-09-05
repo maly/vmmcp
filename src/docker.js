@@ -33,7 +33,13 @@ export async function composeConfig({ runner = runCommand, cwd } = {}) {
 export async function logs({ runner = runCommand, cwd, container, tail = 200 } = {}) {
   const projectState = await listProjectContainers({ runner, cwd });
   assertKnownContainer(projectState, container);
-  const result = await runner("docker", [
+  // Merge at the OS pipe so stdout/stderr retain Docker's write order.
+  // The shell program is fixed; all command arguments remain literal argv.
+  const result = await runner("sh", [
+    "-c",
+    'exec "$@" 2>&1',
+    "--",
+    "docker",
     "logs",
     "--tail",
     String(tail),

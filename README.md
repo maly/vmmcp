@@ -27,7 +27,7 @@ Server nenabízí obecný shell. Každý MCP tool má pevnou signaturu a vlastn�
 
 Hlavní pojistky:
 
-- Docker příkazy běží přes `spawn()` bez shellu.
+- Docker příkazy běží přes `spawn()` bez shellu; `logs` používá pevný POSIX `sh` wrapper `exec "$@" 2>&1`, aby sloučil stdout a stderr v pořadí zápisů. Argumenty předává odděleně přes argv, nevkládá je do shellového kódu. Pro `logs` (a jeho testy) musí být `sh` v PATH; na Windows lze použít Git Bash.
 - `exec_in` přijímá pouze argv pole a povoluje jen vybrané binárky.
 - Mutace kontejnerů/služeb jsou omezené na vlastní Docker Compose projekt.
 - Souborové operace jsou omezené přes `readableGlobs`, `writableGlobs` a `denyGlobs`.
