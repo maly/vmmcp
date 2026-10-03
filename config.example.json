@@ -31,5 +31,9 @@
   "allowedScripts": [
     "start",
     "update"
+  ],
+  "execGrepPathPrefixes": [
+    "/etc/nginx/",
+    "/var/log/nginx/"
   ]
 }

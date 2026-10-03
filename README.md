@@ -28,7 +28,7 @@ Server nenabízí obecný shell. Každý MCP tool má pevnou signaturu a vlastn�
 Hlavní pojistky:
 
 - Docker příkazy běží přes `spawn()` bez shellu; `logs` používá pevný POSIX `sh` wrapper `exec "$@" 2>&1`, aby sloučil stdout a stderr v pořadí zápisů. Argumenty předává odděleně přes argv, nevkládá je do shellového kódu. Pro `logs` (a jeho testy) musí být `sh` v PATH; na Windows lze použít Git Bash.
-- `exec_in` přijímá pouze argv pole a povoluje jen vybrané binárky.
+- `exec_in` přijímá pouze argv pole, povoluje jen vybrané binárky a u každé kontroluje i argumenty (viz „Omezení `exec_in`“).
 - Mutace kontejnerů/služeb jsou omezené na vlastní Docker Compose projekt.
 - Souborové operace jsou omezené přes `readableGlobs`, `writableGlobs` a `denyGlobs`.
 - `.env` lze číst maskovaně, ale nejde přepsat přes `write_file`.
@@ -262,6 +262,16 @@ Diagnostika uvnitř kontejneru:
 exec_in(container="example-web-1", argv=["curl", "http://localhost"])
 exec_in(container="example-web-1", argv=["nginx", "-t"])
 ```
+
+Omezení `exec_in` (argumentová politika, kontroluje se před voláním dockeru):
+
+- `nginx`: jen `-t`, `-T`, `-v`, `-V` (žádné `-s stop|reload`, `-c`, `-g`, `-p`).
+- `grep`: jen bezpečné přepínače (`-n -i -c -v -E -F -H -l -w -x -m <číslo>`), bez rekurze; soubory musí být absolutní cesty pod povolenými prefixy (výchozí `/etc/nginx/`, `/var/log/nginx/`, v `config.json` jdou nastavit přes `execGrepPathPrefixes`).
+- `curl`: jen http(s) URL, vynucené `--proto =http,https`; zakázané výstupní/uploadové/konfigurační přepínače (`-o`, `-O`, `-T`, `-K`, `-c`, `-D`, …) a hodnoty začínající `@`.
+- `wget`: výstup jen na stdout (`-O -`), jen http(s) URL.
+- `ls`, `test`, `getent`, `nslookup`: jen vybrané přepínače; `getent` jen databáze `hosts`, `ahosts*`, `services`, `protocols`, `networks`.
+- Vždy zakázáno: `/proc`, `/sys`, `/dev`, `/run/secrets`, `/var/run/secrets`, `/etc/shadow`, soubory `.env`/`*.env`, `..` v cestách.
+- Nástroj není označen jako `readOnlyHint` (curl/wget mohou jít ven do sítě).
 
 Shell není povolen:
 
