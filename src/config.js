@@ -17,6 +17,8 @@ const DEFAULT_DENY_GLOBS = [".ssh/*", "**/id_rsa*", "**/id_ed25519*"];
 const DEFAULT_ENV_FILES = [".env", "strata.env"];
 const DEFAULT_ENV_PROTECTED_PATTERNS = ["*PASSWORD*", "*API_KEY*", "*SECRET*", "*TOKEN*"];
 const DEFAULT_ALLOWED_SCRIPTS = ["start", "update"];
+// Absolutní prefixy cest uvnitř kontejnerů, které smí číst exec_in grep.
+const DEFAULT_EXEC_GREP_PATH_PREFIXES = ["/etc/nginx/", "/var/log/nginx/"];
 
 function parseList(value, fallback) {
   if (!value) return [...fallback];
@@ -38,7 +40,16 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
       env.envProtectedPatterns,
       DEFAULT_ENV_PROTECTED_PATTERNS
     ),
-    allowedScripts: parseList(env.allowedScripts, DEFAULT_ALLOWED_SCRIPTS)
+    allowedScripts: parseList(env.allowedScripts, DEFAULT_ALLOWED_SCRIPTS),
+    execGrepPathPrefixes: parseList(
+      env.execGrepPathPrefixes,
+      DEFAULT_EXEC_GREP_PATH_PREFIXES
+    ).map((prefix) => {
+      if (!prefix.startsWith("/") || prefix.split("/").includes("..")) {
+        throw new Error(`execGrepPathPrefixes must be absolute paths without "..": ${prefix}`);
+      }
+      return prefix.endsWith("/") ? prefix : `${prefix}/`;
+    })
   };
 }
 

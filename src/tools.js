@@ -135,18 +135,24 @@ export function createToolDefinitions({ config, runner }) {
     },
     {
       name: "exec_in",
-      description: "Run an allowed read-only binary inside a known compose container.",
+      description: "Run an allowed diagnostic binary with a restricted argument policy inside a known compose container (nginx -t, grep on allowed paths, curl/wget over http(s) to stdout, ls, test, getent, nslookup). No shell, no file writes, no recursive grep.",
       inputSchema: objectSchema({
         container: stringProperty("Compose project container name."),
         argv: {
           type: "array",
           items: { type: "string" },
           minItems: 1,
-          description: "Argument vector. The first item must be an allowed binary."
+          description: "Argument vector. The first item must be an allowed binary; its arguments are validated against a per-binary policy."
         }
       }, ["container", "argv"]),
-      annotations: { readOnlyHint: true, openWorldHint: false },
-      handler: (args) => execIn({ runner, cwd, container: args.container, argv: args.argv })
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      handler: (args) => execIn({
+        runner,
+        cwd,
+        container: args.container,
+        argv: args.argv,
+        grepPathPrefixes: config.execGrepPathPrefixes
+      })
     },
     {
       name: "compose_up",

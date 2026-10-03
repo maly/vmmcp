@@ -69,7 +69,7 @@ Result:
 - The original vulnerable `exec_in(argv=["env"])`, `exec_in(argv=["cat"])`, `exec_in(argv=["head"])`, and `exec_in(argv=["tail"])` paths no longer reproduce; each is rejected with `exec_in binary is not allowed` before Docker execution.
 
 Remaining uncertainty:
-- `grep` remains allowed as a diagnostic binary and can read files when combined with a known path. This remediation followed the report's requested default removal for the direct raw disclosure binaries and did not broaden scope into a full per-binary argument policy.
+- `grep` remained allowed as a diagnostic binary and could read files when combined with a known path. This was addressed afterwards by the per-binary argument policy described in Finding 10 (`grep` is limited to safe flags and to configured path prefixes, and secret locations are always denied).
 
 ## Finding 3: Writable docker-compose.yml can be applied with compose_up to run attacker-chosen containers
 
@@ -269,7 +269,47 @@ Result:
 - The behavior remains present by design and is documented as accepted risk for dev/stage usage.
 
 Remaining uncertainty:
-- If this tool is used outside dev/stage, or if cloud metadata/internal services are reachable from project containers, this risk decision should be revisited and `curl`/`wget` should be removed or constrained with destination policy.
+- If this tool is used outside dev/stage, or if cloud metadata/internal services are reachable from project containers, this risk decision should be revisited and `curl`/`wget` should be removed or constrained with destination policy. Finding 10 now restricts what `curl`/`wget` can do locally (no file writes/reads, http(s) only), but not which hosts they may reach; `exec_in` is therefore annotated with `openWorldHint: true`.
+
+## Finding 10: exec_in argument policy
+
+Status: fixed.
+
+Evidence the issue existed:
+- `src/execIn.js` `assertAllowedArgv()` checked only `argv[0]`; all other arguments were passed to `docker exec` unchanged.
+- `grep -a . /proc/1/environ` and `grep -r . /run/secrets` bypassed the masking of `read_env`/`inspect`; `curl -o`/`wget -O` wrote files, `curl file:///...` and `curl -K` read local data/config, and `nginx -s stop|quit|reload` controlled the service.
+- `src/tools.js` annotated `exec_in` with `readOnlyHint: true`, so MCP clients could run it without confirmation.
+
+Fix:
+- Added a per-binary argument policy (`EXEC_ARG_POLICY` in `src/execIn.js`) evaluated before any Docker call; it returns the final argv:
+  - `nginx`: only exactly `-t`, `-T`, `-v`, `-V`.
+  - `grep`: only `-n -i -c -v -E -F -H -l -w -x -m <n>` (and combinations); no recursion, `-f`, long options or `-a`; a pattern plus at least one absolute file path under the allowed prefixes (default `/etc/nginx/`, `/var/log/nginx/`; configurable with `execGrepPathPrefixes`).
+  - `curl`: allowlist of options (no output/upload/config/cookie-jar/dump options; `@file` values rejected), URLs must be `http(s)://`, `--proto =http,https --proto-redir =http,https` is forced.
+  - `wget`: output forced to stdout (`-O -` is added), only http(s) URLs and a small option allowlist.
+  - `ls`, `test`, `getent`, `nslookup`: explicit option allowlists; `getent` limited to host/service/protocol/network databases (no `passwd`/`shadow` dumps).
+  - Always denied: `/proc`, `/sys`, `/dev`, `/run/secrets`, `/var/run/secrets`, `/etc/shadow`, `/etc/gshadow`, any `.env` / `*.env` / `.env.*` file, `..` segments, NUL bytes and non-string items.
+- `exec_in` is now annotated `readOnlyHint: false, destructiveHint: false, openWorldHint: true` and its description states the restricted policy.
+- The policy is in code; MCP callers cannot weaken it. Only the grep path prefixes can be extended through `config.json`.
+
+Changed files:
+- `src/execIn.js`
+- `src/config.js`
+- `src/tools.js`
+- `tests/execIn.test.js`
+- `README.md`
+- `docs/security-remediation.md`
+
+Regression coverage:
+- `tests/execIn.test.js` covers the rejected calls above (the fake runner is never called) and the accepted diagnostics (`curl -sS http://localhost/health` receives `--proto =http,https`, `wget -qO- http://a`, `nginx -t`, `grep -n ... /etc/nginx/nginx.conf`, `ls`, `test`, `getent hosts`, `nslookup`).
+
+Commands run:
+- `node --test tests/execIn.test.js` - 10 new tests failed before the change, 17/17 pass after.
+- `npm test` - all tests pass except 4 pre-existing failures that assume Windows paths (`D:\srv\project`) and also fail on unchanged `master` when run on Linux.
+
+Remaining uncertainty:
+- The policy is validated against fake runners only (no live Docker). Behaviour of BusyBox `wget`/`nslookup` option variants in minimal images was not tested.
+- `curl`/`wget` can still reach any http(s) host reachable from the container (see Finding 9).
+- Symlinks inside allowed grep prefixes are not resolved.
 
 ## Final Verification
 
