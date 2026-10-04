@@ -10,9 +10,10 @@ import {
 } from "../src/config.js";
 
 test("loadConfig returns proposal defaults", () => {
-  const config = loadConfig({}, "D:/srv/project");
+  const root = path.resolve("/srv/project");
+  const config = loadConfig({}, root);
 
-  assert.equal(config.composeProjectDir, "D:\\srv\\project");
+  assert.equal(config.composeProjectDir, root);
   assert.deepEqual(config.writableGlobs, [
     "nginx-vhost/*",
     "*.conf"
@@ -40,17 +41,18 @@ test("loadConfig returns proposal defaults", () => {
 });
 
 test("loadConfig accepts explicit config object overrides", () => {
+  const projectDir = path.resolve(os.tmpdir(), "example");
   const config = loadConfig({
-    composeProjectDir: "C:/apps/example",
+    composeProjectDir: projectDir,
     writableGlobs: ["sites/*.conf"],
     readableGlobs: ["docker-compose.yml", ".env"],
     denyGlobs: [".ssh/*", "**/private*"],
     envFiles: [".env", "local.env"],
     envProtectedPatterns: ["*PASSWORD*", "*TOKEN*"],
     allowedScripts: ["start", "update"]
-  }, "D:/unused");
+  }, path.resolve(os.tmpdir(), "unused"));
 
-  assert.equal(config.composeProjectDir, "C:\\apps\\example");
+  assert.equal(config.composeProjectDir, path.resolve(projectDir));
   assert.deepEqual(config.writableGlobs, ["sites/*.conf"]);
   assert.deepEqual(config.readableGlobs, ["docker-compose.yml", ".env"]);
   assert.deepEqual(config.denyGlobs, [".ssh/*", "**/private*"]);
@@ -84,12 +86,13 @@ test("loadConfigFile reads JSON config from disk", async () => {
 });
 
 test("findConfigPath supports --config and defaults to config.json", () => {
+  const base = path.resolve(os.tmpdir(), "app");
   assert.equal(
-    findConfigPath(["node", "src/server.js", "--config", "custom.json"], "D:/app"),
-    "D:\\app\\custom.json"
+    findConfigPath(["node", "src/server.js", "--config", "custom.json"], base),
+    path.resolve(base, "custom.json")
   );
   assert.equal(
-    findConfigPath(["node", "src/server.js"], "D:/app"),
-    "D:\\app\\config.json"
+    findConfigPath(["node", "src/server.js"], base),
+    path.resolve(base, "config.json")
   );
 });
