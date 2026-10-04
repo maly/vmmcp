@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 import { loadConfig } from "../src/config.js";
 import {
@@ -9,7 +11,8 @@ import {
   resolveProjectPath
 } from "../src/pathPolicy.js";
 
-const config = loadConfig({}, "D:/srv/project");
+const projectRoot = path.resolve(os.tmpdir(), "vmmcp-project");
+const config = loadConfig({}, projectRoot);
 
 test("allows configured readable and writable paths", () => {
   assert.equal(canRead(config, "docker-compose.yml"), true);
@@ -42,9 +45,28 @@ test("denies configured sensitive paths", () => {
 });
 
 test("denies absolute paths outside the project root", () => {
-  assert.equal(canRead(config, "C:/Users/martin/.ssh/id_ed25519"), false);
+  const outside = path.resolve(os.homedir(), ".ssh", "id_ed25519");
+  assert.equal(canRead(config, outside), false);
   assert.throws(
-    () => resolveProjectPath(config, "C:/Users/martin/.ssh/id_ed25519"),
+    () => resolveProjectPath(config, outside),
+    /outside compose project/i
+  );
+
+  const rootLevel = path.join(path.parse(projectRoot).root, "outside");
+  assert.throws(
+    () => resolveProjectPath(config, rootLevel),
     /outside compose project/i
   );
 });
+
+test(
+  "denies Windows drive-letter absolute paths outside the project root",
+  { skip: process.platform !== "win32" && "drive-letter paths are only absolute on Windows" },
+  () => {
+    assert.equal(canRead(config, "C:/Users/martin/.ssh/id_ed25519"), false);
+    assert.throws(
+      () => resolveProjectPath(config, "C:/Users/martin/.ssh/id_ed25519"),
+      /outside compose project/i
+    );
+  }
+);
