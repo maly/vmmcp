@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  BACKUP_DIR_NAME,
   canCopyDestination,
   canDelete,
   canRead,
   canWrite,
+  isInsideBackupDir,
   resolveProjectPath
 } from "./pathPolicy.js";
 
@@ -16,8 +18,8 @@ function backupId() {
   return `${timestamp}-${backupCounter}`;
 }
 
-function backupDir(config, relativePath) {
-  return path.join(config.composeProjectDir, ".mcp-backups", ...relativePath.split("/"));
+export function backupDir(config, relativePath) {
+  return path.join(config.composeProjectDir, BACKUP_DIR_NAME, ...relativePath.split("/"));
 }
 
 function isConfiguredEnvFile(config, inputPath) {
@@ -168,6 +170,7 @@ export async function listBackupsTool(config, inputPath) {
   }
 
   const resolved = resolveProjectPath(config, inputPath);
+  if (isInsideBackupDir(resolved.relativePath)) return [];
   const dir = backupDir(config, resolved.relativePath);
   try {
     return (await fs.readdir(dir)).sort();
@@ -177,8 +180,20 @@ export async function listBackupsTool(config, inputPath) {
   }
 }
 
+async function assertRegularBackupFile(config, source, id) {
+  const stat = await fs.lstat(source);
+  if (!stat.isFile()) {
+    throw new Error(`Backup is not a regular file: ${id}`);
+  }
+  const backupRoot = path.join(await fs.realpath(config.composeProjectDir), BACKUP_DIR_NAME);
+  const realSource = await fs.realpath(source);
+  if (realSource === backupRoot || !isInsideRoot(backupRoot, realSource)) {
+    throw new Error(`Backup resolves outside ${BACKUP_DIR_NAME}: ${id}`);
+  }
+}
+
 export async function restoreFileTool(config, inputPath, inputBackupId) {
-  if (!canRead(config, inputPath) && !isConfiguredEnvFile(config, inputPath)) {
+  if (!canWrite(config, inputPath) && !isConfiguredEnvFile(config, inputPath)) {
     throw new Error(`Path is not restorable: ${inputPath}`);
   }
 
@@ -192,8 +207,10 @@ export async function restoreFileTool(config, inputPath, inputBackupId) {
     throw new Error(`Unknown backup id for ${inputPath}: ${id}`);
   }
 
+  const source = path.join(backupDir(config, resolved.relativePath), id);
+  await assertRegularBackupFile(config, source, id);
   await fs.mkdir(path.dirname(resolved.absolutePath), { recursive: true });
   await assertRealPathInsideProject(config, resolved, { allowMissingLeaf: true });
-  await fs.copyFile(path.join(backupDir(config, resolved.relativePath), id), resolved.absolutePath);
+  await fs.copyFile(source, resolved.absolutePath);
   return { backupId: id };
 }

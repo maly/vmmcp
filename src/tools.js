@@ -243,7 +243,7 @@ export function createToolDefinitions({ config, runner }) {
       name: "restore_file",
       description: "Restore a file from a named backup or the latest backup.",
       inputSchema: objectSchema({
-        path: stringProperty("Project-relative readable path."),
+        path: stringProperty("Project-relative writable path (or configured env file)."),
         backup_id: stringProperty("Optional backup id.")
       }, ["path"]),
       annotations: { destructiveHint: true },

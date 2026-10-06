@@ -54,11 +54,62 @@ export function resolveProjectPath(config, inputPath) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Natvrdo zakázané cesty pro souborové nástroje
+//
+// Nezávisle na readableGlobs/writableGlobs/denyGlobs se přes file nástroje nesmí
+// číst ani zapisovat úložiště záloh (.mcp-backups/**) ani env soubory. Zálohy
+// obsahují nemaskované kopie env souborů a jejich podvržením šlo přes
+// restore_file přepsat skript spouštěný přes run_script. Env soubory se čtou
+// a mění jen přes read_env / set_env_var.
+// ---------------------------------------------------------------------------
+
+export const BACKUP_DIR_NAME = ".mcp-backups";
+
+// Windows ignoruje velikost písmen a koncové tečky/mezery v názvech souborů.
+function normalizeSegment(segment) {
+  return segment.toLowerCase().replace(/[. ]+$/, "");
+}
+
+function normalizeForCompare(relativePath) {
+  return toPosixPath(relativePath).split("/").map(normalizeSegment).join("/");
+}
+
+// Stejné pravidlo používá exec_in pro cesty uvnitř kontejnerů.
+export function isEnvFileName(name) {
+  const base = normalizeSegment(name);
+  return base === ".env" || base.endsWith(".env") || base.startsWith(".env.");
+}
+
+export function isInsideBackupDir(relativePath) {
+  return normalizeSegment(toPosixPath(relativePath).split("/")[0]) === BACKUP_DIR_NAME;
+}
+
+export function isHardDeniedPath(config, relativePath) {
+  const posixPath = toPosixPath(relativePath);
+  if (isInsideBackupDir(posixPath) || isEnvFileName(path.posix.basename(posixPath))) {
+    return true;
+  }
+
+  const normalized = normalizeForCompare(posixPath);
+  return config.envFiles.some((file) => {
+    try {
+      return normalizeForCompare(resolveProjectPath(config, file).relativePath) === normalized;
+    } catch {
+      return false;
+    }
+  });
+}
+
 function isAllowed(config, inputPath, allowGlobs) {
   let resolved;
   try {
     resolved = resolveProjectPath(config, inputPath);
   } catch {
+    return false;
+  }
+
+  if (isHardDeniedPath(config, resolved.relativePath)) {
     return false;
   }
 

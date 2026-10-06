@@ -70,3 +70,31 @@ test(
     );
   }
 );
+
+test("hard-denies backup storage and env files regardless of globs", () => {
+  const wide = loadConfig({
+    readableGlobs: ["**"],
+    writableGlobs: ["**", "**/*.conf"],
+    envFiles: [".env", "config/secrets.txt"]
+  }, projectRoot);
+
+  for (const target of [
+    ".mcp-backups/start/1",
+    ".mcp-backups/x/y.conf",
+    ".mcp-backups/.env/2026-01-01",
+    ".MCP-Backups/start/1",
+    ".env",
+    "sub/.env",
+    "strata.env",
+    ".env.local",
+    "PROD.ENV",
+    "config/secrets.txt"
+  ]) {
+    assert.equal(canRead(wide, target), false, `read ${target}`);
+    assert.equal(canWrite(wide, target), false, `write ${target}`);
+  }
+
+  assert.equal(canRead(wide, "nginx-vhost/site.conf"), true);
+  assert.equal(canWrite(wide, "nginx-vhost/site.conf"), true);
+  assert.equal(canRead(wide, "docs/mcp-backups.md"), true);
+});

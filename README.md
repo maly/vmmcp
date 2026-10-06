@@ -31,9 +31,15 @@ Hlavní pojistky:
 - `exec_in` přijímá pouze argv pole, povoluje jen vybrané binárky a u každé kontroluje i argumenty (viz „Omezení `exec_in`“).
 - Mutace kontejnerů/služeb jsou omezené na vlastní Docker Compose projekt.
 - Souborové operace jsou omezené přes `readableGlobs`, `writableGlobs` a `denyGlobs`.
-- `.env` lze číst maskovaně, ale nejde přepsat přes `write_file`.
+- Natvrdo (bez ohledu na globy) jsou pro `read_file`, `write_file`, `copy_file`, `delete_file` zakázané:
+  - vše pod `.mcp-backups/` – zálohy obsahují nemaskované kopie env souborů a podvržená záloha by šla přes `restore_file` obnovit do skriptu pro `run_script`,
+  - env soubory: soubory z `envFiles` a soubory `.env`, `*.env`, `.env.*` (stejné pravidlo jako u `exec_in`).
+  Platí to i při širokých globech jako `**` nebo `**/*.conf`.
+- `.env` lze číst jen maskovaně přes `read_env` a měnit jen přes `set_env_var`; přes file nástroje ho nejde číst ani přepsat.
 - `set_env_var` odmítá chráněné klíče podle `envProtectedPatterns`.
 - Před zápisem, kopírováním přes existující cíl a smazáním se vytváří backup v `.mcp-backups`.
+- `restore_file` obnoví jen cestu zapisovatelnou podle `writableGlobs` nebo soubor z `envFiles`; záloha musí být běžný soubor (ne symlink) uvnitř `.mcp-backups/`.
+- `run_script` odmítne skript, který je zapisovatelný přes `writableGlobs` nebo ke kterému existují zálohy v `.mcp-backups/<skript>/` (byl měněn přes MCP). Po kontrole obsahu je třeba takové zálohy smazat ručně na hostiteli.
 
 Přístup k Docker socketu je na hostiteli silné oprávnění. Tento server omezuje MCP rozhraní, ale nemění bezpečnostní vlastnosti samotného Dockeru.
 
@@ -83,10 +89,7 @@ Příklad:
     "nginx-vhost/*",
     "*.conf",
     "start",
-    "update",
-    ".env",
-    "example.env",
-    "*.env"
+    "update"
   ],
   "denyGlobs": [
     ".ssh/*",
