@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { loadConfig } from "../src/config.js";
@@ -132,6 +134,21 @@ test("runScript rejects scripts writable through file policy", async () => {
   await assert.rejects(
     () => runScript({ config, runner, name: "start" }),
     /writable through MCP/
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("runScript rejects scripts that have MCP backups", async () => {
+  const { runner, calls } = createRunner();
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "vm-mcp-script-"));
+  await fs.writeFile(path.join(root, "start"), "#!/bin/sh\necho PWNED\n");
+  await fs.mkdir(path.join(root, ".mcp-backups", "start"), { recursive: true });
+  await fs.writeFile(path.join(root, ".mcp-backups", "start", "9999-evil.conf"), "x\n");
+  const config = loadConfig({ composeProjectDir: root }, root);
+
+  await assert.rejects(
+    () => runScript({ config, runner, name: "start" }),
+    /MCP backups/
   );
   assert.equal(calls.length, 0);
 });

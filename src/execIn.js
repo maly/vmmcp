@@ -1,7 +1,9 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { runCommand } from "./commandRunner.js";
 import { assertKnownContainer, listProjectContainers } from "./containers.js";
-import { canWrite } from "./pathPolicy.js";
+import { backupDir } from "./fileOps.js";
+import { canWrite, isEnvFileName } from "./pathPolicy.js";
 
 export const EXEC_BINARIES = [
   "nginx",
@@ -41,8 +43,7 @@ function normalizePosix(value) {
 
 function isForbiddenPath(value) {
   const normalized = normalizePosix(value);
-  const base = path.posix.basename(normalized);
-  if (base === ".env" || base.endsWith(".env") || base.startsWith(".env.")) return true;
+  if (isEnvFileName(path.posix.basename(normalized))) return true;
   return FORBIDDEN_PATH_PREFIXES.some(
     (prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`)
   );
@@ -307,12 +308,25 @@ export async function execIn({ runner = runCommand, cwd, container, argv, grepPa
   return runner("docker", ["exec", container, ...safeArgv], { cwd });
 }
 
+async function hasBackups(config, name) {
+  try {
+    return (await fs.readdir(backupDir(config, name))).length > 0;
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+    throw error;
+  }
+}
+
 export async function runScript({ config, runner = runCommand, name } = {}) {
   if (!config.allowedScripts.includes(name)) {
     throw new Error(`Script is not allowed: ${name}`);
   }
   if (canWrite(config, name)) {
     throw new Error(`Refusing to run script writable through MCP policy: ${name}`);
+  }
+  // Obrana do hloubky: skript, ke kterému existují zálohy, byl měněn přes MCP.
+  if (await hasBackups(config, name)) {
+    throw new Error(`Refusing to run script with MCP backups in .mcp-backups/${name}: ${name}`);
   }
 
   const scriptPath = path.join(config.composeProjectDir, name);
