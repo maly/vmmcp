@@ -3,6 +3,8 @@ on:
   pull_request:
   push:
     branches: [main, master]
+  schedule:
+    - cron: "0 6 * * 1"
 permissions:
   contents: read
 concurrency:
@@ -24,4 +26,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
+      - name: Audit dependencies
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x'
+        run: npm audit --audit-level=high
       - run: npm test
